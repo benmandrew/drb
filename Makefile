@@ -1,4 +1,4 @@
-.PHONY: all verify dafny clean
+.PHONY: all verify dafny rust clean
 
 BOLD_CYAN := \033[1;36m
 RESET := \033[0m
@@ -7,39 +7,59 @@ define log
 	@printf '$(BOLD_CYAN)[%s]$(RESET)\n' "$(1)"
 endef
 
-DAFNY   := dafny
-GO      := go
-NAME    := drb
+DAFNY := dafny
+GO    := go
+CARGO := cargo
+NAME  := drb
 
-# Dafny appends "-go" to the --output path, so build/src → build/src-go
 BUILD_DIR := build
 DFY_OUT   := $(BUILD_DIR)/src
-GO_SRC    := $(DFY_OUT)-go/src
-BINARY    := $(BUILD_DIR)/$(NAME)
+
+# Go: Dafny appends "-go", binary uses GOPATH mode
+GO_SRC  := $(DFY_OUT)-go/src
+BINARY  := $(BUILD_DIR)/$(NAME)
+
+# Rust: Dafny appends "-rust", binary built via Cargo
+RUST_SRC    := $(DFY_OUT)-rust
+RUST_BINARY := $(BUILD_DIR)/$(NAME)-rs
 
 DFY_SRCS := $(wildcard *.dfy)
 
 all: $(BINARY)
 
-# Verify proofs without producing output
 verify:
 	@$(call log,Verifying Dafny proofs)
-	$(DAFNY) verify $(DFY_SRCS)
+	@$(DAFNY) verify --progress Batch $(DFY_SRCS)
 
-# Compile Dafny → Go source
+# ── Go ────────────────────────────────────────────────────────────────────────
+
 $(GO_SRC): $(DFY_SRCS)
 	@$(call log,Compiling Dafny to Go source)
-	@$(DAFNY) build --target go --output $(DFY_OUT) $(DFY_SRCS)
+	@$(DAFNY) build --no-verify --target go --output $(DFY_OUT) $(DFY_SRCS)
 
 dafny: $(GO_SRC)
 
-# Compile Go source → native binary
-# Use GOPATH mode (GO111MODULE=off) since Dafny emits GOPATH-style imports
+# Dafny emits GOPATH-style imports, so use GOPATH mode (GO111MODULE=off)
 $(BINARY): $(GO_SRC)
 	@mkdir -p $(BUILD_DIR)
 	@$(call log,Compiling Go source)
 	@GOPATH=$(abspath $(DFY_OUT)-go) GO111MODULE=off \
 		$(GO) build -C $(abspath $(GO_SRC)) -o $(abspath $(BINARY)) .
+
+# ── Rust ──────────────────────────────────────────────────────────────────────
+
+$(RUST_SRC): $(DFY_SRCS)
+	@$(call log,Compiling Dafny to Rust source)
+	@$(DAFNY) build --no-verify --target rs --enforce-determinism --output $(DFY_OUT) $(DFY_SRCS)
+
+$(RUST_BINARY): $(RUST_SRC)
+	@$(call log,Compiling Rust source)
+	@$(CARGO) build --release --manifest-path $(RUST_SRC)/Cargo.toml
+	@cp $(RUST_SRC)/target/release/src $@
+
+rust: $(RUST_BINARY)
+
+# ── Shared ────────────────────────────────────────────────────────────────────
 
 clean:
 	@$(call log,Cleaning build directory)

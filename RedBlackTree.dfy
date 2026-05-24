@@ -127,10 +127,18 @@ module RedBlackTree {
     ensures BST(t.left) && BST(t.right)
   {}
 
+  // Constructs BST for a node from BST of its children and their key orderings.
+  // Isolates the BST postcondition of rotation results into a single trivial VC.
+  lemma BSTNode(c: Color, l: Tree, k: int, r: Tree)
+    requires BST(l) && BST(r)
+    requires forall q :: q in Keys(l) ==> q < k
+    requires forall q :: q in Keys(r) ==> q > k
+    ensures  BST(Node(c, l, k, r))
+  {}
+
   // For a Black parent, Balance either fires a rotation (result fully NoRedRed)
   // or does nothing (result is Node(Black, l, k, r), NoRedRed if l and r are).
-  // Preconditions include BST and key-ordering so the BST postcondition can be proved.
-  lemma {:timeLimitMultiplier 3} {:vcs_split_on_every_assert} BalanceBlackLeft(l: Tree, k: int, r: Tree)
+  lemma {:vcs_split_on_every_assert} BalanceBlackLeft(l: Tree, k: int, r: Tree)
     requires InsPost(l) && NoRedRed(r)
     requires BlackHeight(l) == BlackHeight(r) && BlackHeight(l) >= 0
     requires BST(l) && BST(r)
@@ -144,39 +152,60 @@ module RedBlackTree {
     BalanceKeys(Black, l, k, r);
     match l {
       case Node(Red, Node(Red, a, x, b), y, c2) =>
-        // LL rotation.  Dafny needs BSTTop calls to chain the quantifiers.
+        // LL rotation: result = Node(Red, Node(Black,a,x,b), y, Node(Black,c2,k,r))
         BSTTop(l); BSTTop(l.left);
+        // Keys(l.left) < l.key = y, so Keys(Node(Black,a,x,b)) < y.
+        assert forall q :: q in Keys(Node(Black, a, x, b)) ==> q < y by {
+          assert Keys(Node(Black, a, x, b)) == Keys(l.left);
+        }
+        // Keys(c2) > y and y < k (y ∈ Keys(l)), so Keys(Node(Black,c2,k,r)) > y.
+        assert y in Keys(l);
+        assert y < k;
+        assert forall q :: q in Keys(Node(Black, c2, k, r)) ==> q > y by {
+          assert Keys(Node(Black, c2, k, r)) == Keys(c2) + {k} + Keys(r);
+          assert forall q :: q in Keys(c2) ==> q > y;
+        }
+        BSTNode(Black, a, x, b);
+        BSTNode(Black, c2, k, r);
+        BSTNode(Red, Node(Black, a, x, b), y, Node(Black, c2, k, r));
+
       case Node(Red, a, x, Node(Red, b, y, c2)) =>
-        // LR rotation.
+        // LR rotation: result = Node(Red, Node(Black,a,x,b), y, Node(Black,c2,k,r))
         BSTTop(l); BSTTop(l.right);
-        // Keys(b) ⊆ Keys(l.right), all of which are > x.
         assert Keys(l.right) == Keys(b) + {y} + Keys(c2);
-        assert forall z :: z in Keys(b) ==> z > x;
-        // Keys(c2) ⊆ Keys(l.right) ⊆ Keys(l), all of which are < k.
-        assert forall z :: z in Keys(c2) ==> z < k;
-        // BST of the two new black children.
-        assert BST(Node(Black, a, x, b)) by {
-          assert BST(a); assert BST(b);
-          assert forall z :: z in Keys(a) ==> z < x;
-          assert forall z :: z in Keys(b) ==> z > x;
+        // Keys(b) ⊆ Keys(l.right), all > l.key = x.
+        assert forall q :: q in Keys(b) ==> q > x;
+        // x < y (y ∈ Keys(l.right) > x) and Keys(b) < y, so Keys(Node(Black,a,x,b)) < y.
+        assert y in Keys(l.right);
+        assert x < y;
+        assert forall q :: q in Keys(Node(Black, a, x, b)) ==> q < y by {
+          assert Keys(Node(Black, a, x, b)) == Keys(a) + {x} + Keys(b);
+          assert forall q :: q in Keys(b) ==> q < y;
         }
-        assert BST(Node(Black, c2, k, r)) by {
-          assert BST(c2); assert BST(r);
-          assert forall z :: z in Keys(c2) ==> z < k;
-          assert forall z :: z in Keys(r) ==> z > k;
+        // Keys(c2) > y and y < k (y ∈ Keys(l)), so Keys(Node(Black,c2,k,r)) > y.
+        assert y in Keys(l);
+        assert y < k;
+        assert forall q :: q in Keys(Node(Black, c2, k, r)) ==> q > y by {
+          assert Keys(Node(Black, c2, k, r)) == Keys(c2) + {k} + Keys(r);
+          assert forall q :: q in Keys(c2) ==> q > y;
         }
+        BSTNode(Black, a, x, b);
+        BSTNode(Black, c2, k, r);
+        BSTNode(Red, Node(Black, a, x, b), y, Node(Black, c2, k, r));
+
       case _ =>
+        // NoRedRed(r) makes RL/RR inner cases impossible; no rotation fires.
         match r {
           case Node(Red, Node(Red, _, _, _), _, _) => {}
           case Node(Red, _, _, Node(Red, _, _, _)) => {}
-          case _ =>
-            InsPostNoRedPattern(l);
+          case _ => InsPostNoRedPattern(l);
         }
     }
   }
 
   // Symmetric: RIGHT child comes from Ins.
-  lemma {:timeLimitMultiplier 3} {:vcs_split_on_every_assert} BalanceBlackRight(l: Tree, k: int, r: Tree)
+  // Structured with r at the top-level match to avoid nested-match VC inflation.
+  lemma {:vcs_split_on_every_assert} BalanceBlackRight(l: Tree, k: int, r: Tree)
     requires NoRedRed(l) && InsPost(r)
     requires BlackHeight(l) == BlackHeight(r) && BlackHeight(l) >= 0
     requires BST(l) && BST(r)
@@ -188,47 +217,62 @@ module RedBlackTree {
     ensures  Keys(Balance(Black, l, k, r)) == Keys(l) + {k} + Keys(r)
   {
     BalanceKeys(Black, l, k, r);
-    match l {
-      case Node(Red, Node(Red, _, _, _), _, _) => {}
-      case Node(Red, _, _, Node(Red, _, _, _)) => {}
-      case _ =>
-        match r {
-          case Node(Red, Node(Red, b, y, c2), z, d) =>
-            // RL rotation: result is Node(Red, Node(Black, l, k, b), y, Node(Black, c2, z, d)).
-            // Keys(b) ⊆ Keys(r.left) ⊆ Keys(r), all > k.
-            BSTTop(r); BSTTop(r.left);
-            assert Keys(r.left) == Keys(b) + {y} + Keys(c2);
-            assert forall q :: q in Keys(b) ==> q > k;
-            // Keys(c2) ⊆ Keys(r.left), all < r.key == z.
-            assert forall q :: q in Keys(c2) ==> q < z;
-            assert BST(Node(Black, l, k, b)) by {
-              assert BST(l); assert BST(b);
-              assert forall q :: q in Keys(l) ==> q < k;
-              assert forall q :: q in Keys(b) ==> q > k;
-            }
-            assert BST(Node(Black, c2, z, d)) by {
-              assert BST(c2); assert BST(d);
-              assert forall q :: q in Keys(c2) ==> q < z;
-              assert forall q :: q in Keys(d)  ==> q > z;
-            }
-          case Node(Red, b, y, Node(Red, c2, z, d)) =>
-            // RR rotation: result is Node(Red, Node(Black, l, k, b), y, Node(Black, c2, z, d)).
-            // Keys(b) ⊆ Keys(r), all > k.
-            BSTTop(r); BSTTop(r.right);
-            assert Keys(r) == Keys(b) + {y} + Keys(c2) + {z} + Keys(d);
-            assert forall q :: q in Keys(b) ==> q > k;
-            assert BST(Node(Black, l, k, b)) by {
-              assert BST(l); assert BST(b);
-              assert forall q :: q in Keys(l) ==> q < k;
-              assert forall q :: q in Keys(b) ==> q > k;
-            }
-            assert BST(Node(Black, c2, z, d)) by {
-              assert BST(c2); assert BST(d);
-              assert forall q :: q in Keys(c2) ==> q < z;
-              assert forall q :: q in Keys(d)  ==> q > z;
-            }
-          case _ => InsPostNoRedPattern(r);
+    match r {
+      case Node(Red, Node(Red, b, y, c2), z, d) =>
+        // RL rotation: result = Node(Red, Node(Black,l,k,b), y, Node(Black,c2,z,d))
+        BSTTop(r); BSTTop(r.left);
+        assert Keys(r.left) == Keys(b) + {y} + Keys(c2);
+        // Keys(b) ⊆ Keys(r.left) ⊆ Keys(r), all > k.
+        assert forall q :: q in Keys(b) ==> q > k;
+        // k < y (y ∈ Keys(r) > k) and Keys(b) < y, so Keys(Node(Black,l,k,b)) < y.
+        assert y in Keys(r);
+        assert k < y;
+        assert forall q :: q in Keys(Node(Black, l, k, b)) ==> q < y by {
+          assert Keys(Node(Black, l, k, b)) == Keys(l) + {k} + Keys(b);
+          assert forall q :: q in Keys(b) ==> q < y;
         }
+        // Keys(c2) > y and y < z (y ∈ Keys(r.left) < r.key = z), so Keys(Node(Black,c2,z,d)) > y.
+        assert y < z;
+        assert forall q :: q in Keys(Node(Black, c2, z, d)) ==> q > y by {
+          assert Keys(Node(Black, c2, z, d)) == Keys(c2) + {z} + Keys(d);
+          assert forall q :: q in Keys(c2) ==> q > y;
+          assert forall q :: q in Keys(d)  ==> q > z;
+        }
+        BSTNode(Black, l, k, b);
+        BSTNode(Black, c2, z, d);
+        BSTNode(Red, Node(Black, l, k, b), y, Node(Black, c2, z, d));
+
+      case Node(Red, b, y, Node(Red, c2, z, d)) =>
+        // RR rotation: result = Node(Red, Node(Black,l,k,b), y, Node(Black,c2,z,d))
+        BSTTop(r); BSTTop(r.right);
+        // Keys(b) ⊆ Keys(r), all > k.
+        assert forall q :: q in Keys(b) ==> q > k by {
+          assert Keys(r) == Keys(b) + {y} + Keys(c2) + {z} + Keys(d);
+        }
+        // k < y (y = r.key ∈ Keys(r) > k) and Keys(b) < y, so Keys(Node(Black,l,k,b)) < y.
+        assert y in Keys(r);
+        assert k < y;
+        assert forall q :: q in Keys(Node(Black, l, k, b)) ==> q < y by {
+          assert Keys(Node(Black, l, k, b)) == Keys(l) + {k} + Keys(b);
+          assert forall q :: q in Keys(b) ==> q < y;
+        }
+        // Keys(c2) > y (⊆ Keys(r.right) > r.key = y) and Keys(d) > z > y.
+        assert forall q :: q in Keys(Node(Black, c2, z, d)) ==> q > y by {
+          assert Keys(Node(Black, c2, z, d)) == Keys(c2) + {z} + Keys(d);
+          assert forall q :: q in Keys(c2) ==> q > y by {
+            assert forall q :: q in Keys(r.right) ==> q > y;
+          }
+          assert z > y by { assert z in Keys(r.right); }
+          assert forall q :: q in Keys(d) ==> q > z;
+        }
+        BSTNode(Black, l, k, b);
+        BSTNode(Black, c2, z, d);
+        BSTNode(Red, Node(Black, l, k, b), y, Node(Black, c2, z, d));
+
+      case _ =>
+        // NoRedRed(l) makes LL/LR patterns for l impossible, so no rotation fires.
+        InsPostNoRedPattern(r);
+        BSTNode(Black, l, k, r);
     }
   }
 

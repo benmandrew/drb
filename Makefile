@@ -11,6 +11,7 @@ DAFNY := dafny
 GO    := go
 CARGO := cargo
 NAME  := drb
+CORES := $(shell nproc)
 
 BUILD_DIR := build
 DFY_OUT   := $(BUILD_DIR)/src
@@ -29,7 +30,7 @@ all: $(BINARY)
 
 verify:
 	@$(call log,Verifying Dafny proofs)
-	@$(DAFNY) verify --progress Batch $(DFY_SRCS)
+	@$(DAFNY) verify --cores $(CORES) --progress Batch $(DFY_SRCS)
 
 # ── Go ────────────────────────────────────────────────────────────────────────
 

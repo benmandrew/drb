@@ -132,8 +132,8 @@ Node(Red, Node(Black, a, x, b), y, Node(Black, c, z, d))
 The middle key `y` becomes the new root; the two flanking subtrees become black children. This eliminates exactly one red-red violation and preserves black-height because the new root is red where the old root was black.
 
 ```
-    B               R
-   / \            /   \
+    B              R
+   / \           /   \
   R   d   →    B       B
  / \          / \     / \
 R   c        a   b   c   d

@@ -93,3 +93,7 @@ format:
 format-check:
 	@$(call log,Checking Dafny code formatting)
 	@$(DAFNY) format --check $(DFY_SRCS)
+
+docs:
+	@$(call log,Generating Dafny documentation)
+	@$(DAFNY) doc  --program-name "$(NAME)" --output $(BUILD_DIR)/docs $(DFY_SRCS)

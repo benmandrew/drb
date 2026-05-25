@@ -19,6 +19,18 @@ jobs:
     - name: Verify Dafny code
       run: make verify
 
+  docs:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Dafny
+      uses: dafny-lang/setup-dafny-action@v1
+      with:
+        dafny-version: "4.11.0"
+    - name: Build documentation
+      run: make docs
+
   build-go:
     needs: verify
     runs-on: ubuntu-latest

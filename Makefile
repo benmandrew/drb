@@ -1,4 +1,4 @@
-.PHONY: all verify go rust clean bench bench-go bench-rust compare
+.PHONY: all verify go rust clean bench bench-go bench-rust compare format format-check
 
 BOLD_CYAN := \033[1;36m
 RESET := \033[0m
@@ -85,3 +85,11 @@ bench-compare: $(GO_SRC) $(RUST_SRC)
 clean:
 	@$(call log,Cleaning build directory)
 	@rm -rf $(BUILD_DIR)/
+
+format:
+	@$(call log,Formatting Dafny code)
+	@$(DAFNY) format $(DFY_SRCS)
+
+format-check:
+	@$(call log,Checking Dafny code formatting)
+	@$(DAFNY) format --check $(DFY_SRCS)

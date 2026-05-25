@@ -26,7 +26,7 @@ RUST_BINARY := $(BUILD_DIR)/$(NAME)-rs
 
 DFY_SRCS := $(wildcard *.dfy)
 
-all: verify $(BINARY)
+all: verify go rust
 
 verify:
 	@$(call log,Verifying Dafny proofs)
@@ -38,14 +38,14 @@ $(GO_SRC): $(DFY_SRCS)
 	@$(call log,Compiling Dafny to Go source)
 	@$(DAFNY) build --no-verify --target go --output $(DFY_OUT) $(DFY_SRCS)
 
-dafny: $(GO_SRC)
-
 # Dafny emits GOPATH-style imports, so use GOPATH mode (GO111MODULE=off)
 $(BINARY): $(GO_SRC)
 	@mkdir -p $(BUILD_DIR)
 	@$(call log,Compiling Go source)
 	@GOPATH=$(abspath $(DFY_OUT)-go) GO111MODULE=off \
 		$(GO) build -C $(abspath $(GO_SRC)) -o $(abspath $(BINARY)) .
+
+go: $(GO_SRC)
 
 # ── Rust ──────────────────────────────────────────────────────────────────────
 

@@ -217,6 +217,10 @@ module RedBlackTree {
     ensures  Keys(Balance(Black, l, k, r)) == Keys(l) + {k} + Keys(r)
   {
     BalanceKeys(Black, l, k, r);
+    // NoRedRed(l) rules out both left-side patterns that Balance checks first.
+    // Making this explicit avoids re-deriving it inside each rotation case.
+    assert !(l.Node? && l.color == Red && l.left.Node?  && l.left.color  == Red);
+    assert !(l.Node? && l.color == Red && l.right.Node? && l.right.color == Red);
     match r {
       case Node(Red, Node(Red, b, y, c2), z, d) =>
         // RL rotation: result = Node(Red, Node(Black,l,k,b), y, Node(Black,c2,z,d))

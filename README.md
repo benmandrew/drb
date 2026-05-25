@@ -7,8 +7,9 @@ proves those contracts hold for all possible inputs before the code can compile.
 ## Building
 
 ```
-make          # verify + compile Dafny → Go → native binary
-make verify   # proof-check only (no compilation)
+make          # compile Dafny → Go → native binary
+make rust     # compile Dafny → Rust → native binary
+make verify   # proof-check
 make clean
 ```
 

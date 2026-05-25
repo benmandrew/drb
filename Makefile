@@ -26,7 +26,7 @@ RUST_BINARY := $(BUILD_DIR)/$(NAME)-rs
 
 DFY_SRCS := $(wildcard *.dfy)
 
-all: $(BINARY)
+all: verify $(BINARY)
 
 verify:
 	@$(call log,Verifying Dafny proofs)
